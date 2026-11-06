@@ -306,8 +306,8 @@ function renderAna(){const el=document.getElementById('anaBody');
  <h4>月成交量與平均單價</h4>${monthChart(R)}<h4>樓層單價<small>萬/坪</small></h4>${floorChart(R)}${roomTable(R)}
  <h4>逐年明細<small>全部年度、全部類別</small></h4>${yearTable(p)}
  <div class="note">均價單位萬/坪，不含店面｜位置：${esc(p.src)}</div>`}
-function select(i){state.sel=i;update();if(i!=null){ana.classList.add('open');if(MOBILE)setSide(false);ana.scrollTop=0}}
-function fly(i){const p=P[i];map.flyTo({center:[p.lon,p.lat],zoom:Math.max(map.getZoom(),15.2),pitch:55,speed:1.2,offset:MOBILE?[0,-window.innerHeight*0.25]:[0,0]});select(i)}
+function select(i){if(i!=null&&i===state.sel)i=null;/* 再點同一案＝取消，回到總覽 */state.sel=i;update();if(i!=null){ana.classList.add('open');if(MOBILE)setSide(false);ana.scrollTop=0}}
+function fly(i){if(i===state.sel){select(null);return}const p=P[i];map.flyTo({center:[p.lon,p.lat],zoom:Math.max(map.getZoom(),15.2),pitch:55,speed:1.2,offset:MOBILE?[0,-window.innerHeight*0.25]:[0,0]});select(i)}
 
 // ---- 底圖 ----
 const OFM='https://tiles.openfreemap.org';
