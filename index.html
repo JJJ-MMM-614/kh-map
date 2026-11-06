@@ -103,7 +103,7 @@ table.t th.g0{color:var(--c0)}table.t th.g1{color:var(--c1)}table.t th.g2{color:
  </header>
  <div id="scroll">
   <div class="sec"><h2>成交類別</h2><div class="chips" id="cats"></div></div>
-  <div class="sec"><h2>年度（依成交日）</h2><div class="chips" id="years"></div></div>
+  <div class="sec"><h2>年度（依成交日，可複選）</h2><div class="chips" id="years"></div></div>
   <div class="sec"><h2>行政區 <span class="chip sm" id="dAll">全選</span> <span class="chip sm" id="dNone">清除</span></h2><div class="chips" id="dists"></div></div>
   <div class="sec"><div class="row"><label><input type="checkbox" id="hideApprox"> 隱藏位置只到行政區的建案</label></div></div>
   <div class="sec"><input type="search" id="q" placeholder="搜尋建案名稱或地址"></div>
@@ -192,12 +192,16 @@ const COL=['#38e1ff','#ff9f43','#c58bff'], KEYS=['p','n','r'], CN=['預售屋','
 const DIST=META.dists, YEARS=META.years;
 const MOBILE=matchMedia('(max-width:760px)').matches;
 const PIE_Z=15, LBL_Z=13, CARD_Z=13.2;
-let state={year:'all',cats:new Set([0,1,2]),dists:new Set(DIST),q:'',hideApprox:false,base:'nlsc',sel:null};
+let state={year:'all',yrs:new Set(),cats:new Set([0,1,2]),dists:new Set(DIST),q:'',hideApprox:false,base:'nlsc',sel:null};
 document.getElementById('meta').textContent=`內政部實價登錄｜預售 ${META.prange}、成屋 ${META.hrange}｜${P.length} 個建案｜更新 ${META.built}`;
 function chipRow(el,items,isOn,onClick){items.forEach(([v,t,col])=>{const c=document.createElement('span');c.className='chip'+(isOn(v)?' on':'');c.innerHTML=(col?`<span class="dot" style="background:${col}"></span>`:'')+t;c.dataset.v=v;c.onclick=()=>onClick(v,c);el.appendChild(c)})}
 chipRow(document.getElementById('cats'),[0,1,2].map(i=>[i,CN[i],COL[i]]),v=>true,(v,c)=>{state.cats.has(v)?state.cats.delete(v):state.cats.add(v);c.classList.toggle('on');update()});
 const yEl=document.getElementById('years');
-chipRow(yEl,[['all','全部'],...YEARS.map(y=>[String(y),y])],v=>v==='all',(v)=>{state.year=String(v);[...yEl.children].forEach(x=>x.classList.toggle('on',x.dataset.v===String(v)));update()});
+// 年度可複選：點年份疊加，點「全部」清除
+chipRow(yEl,[['all','全部'],...YEARS.map(y=>[String(y),y])],v=>v==='all',(v)=>{v=String(v);
+ if(v==='all')state.yrs.clear();else state.yrs.has(v)?state.yrs.delete(v):state.yrs.add(v);
+ state.year=state.yrs.size?'some':'all';
+ [...yEl.children].forEach(x=>x.classList.toggle('on',x.dataset.v==='all'?!state.yrs.size:state.yrs.has(x.dataset.v)));update()});
 const dEl=document.getElementById('dists');
 DIST.forEach(d=>{const c=document.createElement('span');c.className='chip sm on';c.textContent=d.replace('區','');c.dataset.v=d;c.onclick=()=>{state.dists.has(d)?state.dists.delete(d):state.dists.add(d);c.classList.toggle('on');update()};dEl.appendChild(c)});
 document.getElementById('dAll').onclick=()=>{state.dists=new Set(DIST);[...dEl.children].forEach(x=>x.classList.add('on'));update()};
@@ -211,7 +215,7 @@ document.getElementById('anaX').addEventListener('click',()=>{ana.classList.remo
 
 // ---- 資料計算 ----
 // rw: [年月, 類別0預售/1一手/2轉手, 單價(店面為null), 總價萬, 坪數, 樓層, 房數]
-const yOK=ym=>state.year==='all'||String(Math.floor(ym/100))===state.year;
+const yOK=ym=>!state.yrs.size||state.yrs.has(String(Math.floor(ym/100)));
 function rowsOf(p){return p.rw.filter(r=>state.cats.has(r[1])&&yOK(r[0]))}
 function vals(p){const c=[0,0,0];let us=0,un=0;for(const r of p.rw){if(!state.cats.has(r[1])||!yOK(r[0]))continue;c[r[1]]++;if(r[2]!=null){us+=r[2];un++}}const t=c[0]+c[1]+c[2];return t?{t,c,a:un?us/un:null}:null}
 function filtered(){const q=state.q;return P.map((p,i)=>({p,i,v:vals(p)})).filter(o=>o.v&&state.dists.has(o.p.d)&&!(state.hideApprox&&LV[o.p.lev]===3)&&(!q||o.p.n.includes(q)||o.p.addr.includes(q)))}
@@ -291,7 +295,7 @@ function roomTable(R){const m=new Map();R.forEach(r=>{if(r[6]<0||r[2]==null)retu
 function yearTable(p){const y=new Map();p.rw.forEach(r=>{const k=Math.floor(r[0]/100);const o=y.get(k)||y.set(k,[[],[],[]]).get(k);o[r[1]].push(r)});
  const cell=a=>a.length?`<td>${a.length}</td><td>${fmt(avg(a.filter(r=>r[2]!=null).map(r=>r[2])))}</td>`:'<td>—</td><td></td>';
  return`<table class="t"><tr><th rowspan="2">年度</th><th class="g0" colspan="2">預售屋</th><th class="g1" colspan="2">成屋一手</th><th class="g2" colspan="2">成屋轉手</th></tr><tr><th>筆</th><th>均價</th><th>筆</th><th>均價</th><th>筆</th><th>均價</th></tr>${[...y.keys()].sort().map(k=>`<tr><td>${k}</td>${y.get(k).map(cell).join('')}</tr>`).join('')}</table>`}
-function filterDesc(){return`${state.year==='all'?'全部年度':state.year+' 年'}｜${[...state.cats].sort().map(k=>CN[k]).join('、')||'未選類別'}`}
+function filterDesc(){return`${state.yrs.size?[...state.yrs].sort().join('、')+' 年':'全部年度'}｜${[...state.cats].sort().map(k=>CN[k]).join('、')||'未選類別'}`}
 function renderAna(){const el=document.getElementById('anaBody');
  if(state.sel==null){const R=lastRows.flatMap(o=>rowsOf(o.p));
   el.innerHTML=`<h3>${state.dists.size===DIST.length?'高雄市':state.dists.size===1?[...state.dists][0]:state.dists.size+' 個行政區'}　總覽</h3><div class="sub">${filterDesc()}｜${lastRows.length} 個建案</div>${kpis(R)}
