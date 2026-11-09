@@ -52,6 +52,8 @@ input[type=search]{width:100%;padding:8px 10px;border:1px solid var(--line);bord
 .kpi b{font-size:17px;color:#fff;font-variant-numeric:tabular-nums}
 .kpi b small{font-size:11px;color:var(--sub);font-weight:400;margin-left:2px}
 .kpi.w2{grid-column:span 2}
+.kpi.tx{cursor:pointer;border-color:var(--accent)}.kpi.tx u{font-size:10px;color:var(--accent);text-decoration:none;margin-left:2px}
+table.tx th{position:sticky;top:0;background:#0b1a2e}
 .sbar{display:flex;height:8px;border-radius:4px;overflow:hidden;margin:8px 0 2px;background:#223}
 .sbar i{display:block;height:100%}
 .leg{font-size:11px;color:var(--sub)}.leg i{display:inline-block;width:8px;height:8px;border-radius:50%;margin:0 4px 0 8px;vertical-align:0}.leg i:first-child{margin-left:0}
@@ -114,7 +116,7 @@ table.t th.g0{color:var(--c0)}table.t th.g1{color:var(--c1)}table.t th.g2{color:
  <div id="basesw"><span data-b="nlsc">通用電子地圖</span><span data-b="street">街道圖</span><span data-b="tech">科技風</span></div>
  <div id="legend">
   <div><span class="sw" style="background:var(--c0)"></span>預售屋 <span class="sw" style="background:var(--c1);margin-left:6px"></span>成屋一手 <span class="sw" style="background:var(--c2);margin-left:6px"></span>成屋轉手</div>
-  <div class="hide-m">縮小：六角格高度與顏色＝該區域成交量 （點格子放大）<div id="hexleg" style="display:flex;gap:2px;margin-top:3px"></div></div><div class="hide-m">放大：建案資訊卡（比例條＝預售／一手／轉手）</div>
+  <div class="hide-m">圓點＝建案（顏色＝成交最多的類別）；資訊卡依成交量優先顯示，放大會出現更多</div>
   <div class="hide-m">位置精度：<span class="tag lv0">門牌</span><span class="tag lv1">路口/巷</span><span class="tag lv2">路段</span><span class="tag lv3">僅到區</span></div>
  </div>
 </div>
@@ -285,9 +287,15 @@ function distChart(rows){const m=new Map();rows.forEach(({p,v})=>{const o=m.get(
  let s=`<svg class="ch" viewBox="0 0 ${W} ${H}">`;ks.forEach((k,i)=>{const o=m.get(k),y=i*rh+2;let x=L;s+=`<text x="${L-5}" y="${y+11}" text-anchor="end">${k.replace('區','')}</text>`;
   [0,1,2].forEach(c=>{const w=iw*o[c]/mx;if(w>0)s+=`<rect x="${x}" y="${y+2}" width="${w}" height="${rh-6}" fill="${COL[c]}" opacity=".85"><title>${k} ${CN[c]} ${o[c]} 筆</title></rect>`;x+=w});
   s+=`<text x="${x+4}" y="${y+11}">${(o[0]+o[1]+o[2]).toLocaleString()}</text>`});return s+'</svg>'}
-function kpis(R,extra=''){const nu=R.filter(r=>r[2]!=null),u=nu.map(r=>r[2]),tt=nu.map(r=>r[3]).filter(x=>x>0),ar=nu.map(r=>r[4]).filter(x=>x>0);
+let txOpen=false;
+function toggleTx(){txOpen=!txOpen;const w=document.getElementById('txWrap');if(w)w.style.display=txOpen?'block':'none';const u=document.querySelector('.kpi.tx u');if(u)u.textContent=txOpen?'明細 ▴':'明細 ▾'}
+// 每筆成交明細（依成交年月新到舊）
+function txTable(R){if(!R.length)return'<div class="note">目前篩選沒有成交</div>';
+ const rows=[...R].sort((a,b)=>b[0]-a[0]||a[5]-b[5]);
+ return`<h4>成交明細<small>${R.length} 筆，新到舊</small></h4><div style="max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:6px"><table class="t tx"><thead><tr><th>年月</th><th>類別</th><th>樓層</th><th>坪數</th><th>總價(萬)</th><th>單價</th><th>房</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${String(Math.floor(r[0]/100))}/${String(r[0]%100).padStart(2,'0')}</td><td style="color:${COL[r[1]]}">${['預售','一手','轉手'][r[1]]}</td><td>${r[5]?r[5]+'F':'—'}</td><td>${fmt(r[4])}</td><td>${r[3]?r[3].toLocaleString():'—'}</td><td>${r[2]==null?'<span style="color:#ff9f43">店面</span>':fmt(r[2])}</td><td>${r[6]>=0?r[6]:'—'}</td></tr>`).join('')}</tbody></table></div><div class="note">單價萬/坪（已扣車位）；成屋資料沒有房數。</div>`}
+function kpis(R,extra='',tx=false){const nu=R.filter(r=>r[2]!=null),u=nu.map(r=>r[2]),tt=nu.map(r=>r[3]).filter(x=>x>0),ar=nu.map(r=>r[4]).filter(x=>x>0);
  const c=[0,1,2].map(k=>R.filter(r=>r[1]===k).length);
- return`<div class="kpis"><div class="kpi"><span>期間成交</span><b>${R.length.toLocaleString()}<small>筆</small></b></div><div class="kpi"><span>平均單價</span><b>${fmt(avg(u))}<small>萬/坪</small></b></div><div class="kpi"><span>平均總價</span><b>${tt.length?Math.round(avg(tt)).toLocaleString():'—'}<small>萬</small></b></div>
+ return`<div class="kpis"><div class="kpi${tx?' tx':''}"${tx?' onclick="toggleTx()" title="點開看每筆成交明細"':''}><span>期間成交${tx?' <u>明細 ▾</u>':''}</span><b>${R.length.toLocaleString()}<small>筆</small></b></div><div class="kpi"><span>平均單價</span><b>${fmt(avg(u))}<small>萬/坪</small></b></div><div class="kpi"><span>平均總價</span><b>${tt.length?Math.round(avg(tt)).toLocaleString():'—'}<small>萬</small></b></div>
  <div class="kpi"><span>單價區間</span><b style="font-size:14px">${u.length?fmt(Math.min(...u))+'–'+fmt(Math.max(...u)):'—'}</b></div><div class="kpi"><span>平均坪數</span><b>${fmt(avg(ar))}<small>坪</small></b></div>${extra}</div>
  ${R.length?`<div class="sbar">${c.map((x,k)=>`<i style="width:${100*x/R.length}%;background:${COL[k]}"></i>`).join('')}</div><div class="leg">${c.map((x,k)=>`<i style="background:${COL[k]}"></i>${CN[k]} ${x}`).join('')}</div>`:''}`}
 function roomTable(R){const m=new Map();R.forEach(r=>{if(r[6]<0||r[2]==null)return;const k=r[6]>=4?4:r[6];(m.get(k)||m.set(k,[]).get(k)).push(r)});if(!m.size)return'';
@@ -302,11 +310,12 @@ function renderAna(){const el=document.getElementById('anaBody');
   <h4>各區成交筆數</h4>${distChart(lastRows)}<h4>月成交量與平均單價</h4>${monthChart(R)}<div class="note">點地圖上的建案或左側清單，可以看單一建案的分析。均價不含店面。</div>`;return}
  const p=P[state.sel],R=rowsOf(p);
  el.innerHTML=`<h3>${esc(p.n)} <span class="tag ${p.kind==='成屋'?'k1':'k0'}">${p.kind}建案</span></h3><div class="sub">${p.d}｜${esc(p.ty||'')}${p.fl?'｜'+esc(p.fl)+(/^\d+$/.test(p.fl)?' 層':''):''}${p.done?'｜完工 '+p.done:''}${p.bld?'<br>建設：'+esc(p.bld):''}${p.hh?'<br>住家 '+p.hh+' 戶'+(p.shop?'＋店面 '+p.shop+' 戶':'')+(p.sell?'｜預售去化 '+Math.round(p.sell*100)+'%':'')+(p.hv&&p.hv.startsWith('待確認')?'<br><span style="color:#e9a23b">戶數'+esc(p.hv.replace(/^待確認：/,'待確認：'))+'</span>':''):''}${p.pend?'<br><span style="color:#e9a23b">有 '+p.pend+' 筆歸戶為推測或待查</span>':''}<br>${p.cv&&p.cv.startsWith('待確認')?'<span style="color:#e9a23b">位置'+esc(p.cv)+'</span><br>':''}${esc(p.addr)}　<span class="tag lv${LV[p.lev]}">${LVN[LV[p.lev]]}</span></div>
- ${kpis(R)}<div class="sub" style="margin-top:4px">${filterDesc()}</div>
+ ${kpis(R,'',true)}<div class="sub" style="margin-top:4px">${filterDesc()}</div>
+ <div id="txWrap" style="display:${txOpen?'block':'none'}">${txTable(R)}</div>
  <h4>月成交量與平均單價</h4>${monthChart(R)}<h4>樓層單價<small>萬/坪</small></h4>${floorChart(R)}${roomTable(R)}
  <h4>逐年明細<small>全部年度、全部類別</small></h4>${yearTable(p)}
  <div class="note">均價單位萬/坪，不含店面｜位置：${esc(p.src)}</div>`}
-function select(i){if(i!=null&&i===state.sel)i=null;/* 再點同一案＝取消，回到總覽 */state.sel=i;update();if(i!=null){ana.classList.add('open');if(MOBILE)setSide(false);ana.scrollTop=0}}
+function select(i){if(i!==state.sel)txOpen=false;if(i!=null&&i===state.sel)i=null;/* 再點同一案＝取消，回到總覽 */state.sel=i;update();if(i!=null){ana.classList.add('open');if(MOBILE)setSide(false);ana.scrollTop=0}}
 function fly(i){if(i===state.sel){select(null);return}const p=P[i];map.flyTo({center:[p.lon,p.lat],zoom:Math.max(map.getZoom(),15.2),pitch:55,speed:1.2,offset:MOBILE?[0,-window.innerHeight*0.25]:[0,0]});select(i)}
 
 // ---- 底圖 ----
@@ -377,12 +386,12 @@ function addOverlay(){
  map.addLayer({id:'kh-line',type:'line',source:'mask',paint:{'line-color':'#9ff3ff','line-width':1.8}});
  map.addSource('pj',{type:'geojson',data:lastF[0]});
  map.addSource('pie',{type:'geojson',data:lastF[1]});
- map.addLayer({id:'pj',type:'fill-extrusion',source:'pj',maxzoom:CARD_Z+0.3,paint:{'fill-extrusion-color':['get','col'],'fill-extrusion-base':['get','b'],'fill-extrusion-height':['get','t'],'fill-extrusion-opacity':['interpolate',['linear'],['zoom'],CARD_Z-0.5,0.88,CARD_Z+0.3,0.15],'fill-extrusion-vertical-gradient':true}});
+ // 六角格已取消（手機不好操作），只保留建案圓點與資訊卡
  if(!map.hasImage('lbl-l'))map.addImage('lbl-l',boxImage('rgba(255,255,255,.94)','rgba(20,40,70,.25)'),{pixelRatio:2,stretchX:[[14,26]],stretchY:[[12,16]],content:[8,6,32,22]});
  if(!map.hasImage('lbl-d'))map.addImage('lbl-d',boxImage('rgba(8,20,36,.92)','rgba(56,225,255,.55)'),{pixelRatio:2,stretchX:[[14,26]],stretchY:[[12,16]],content:[8,6,32,22]});
- map.addLayer({id:'dot',type:'circle',source:'pie',minzoom:CARD_Z-0.5,paint:{'circle-radius':['interpolate',['linear'],['zoom'],13,3,17,6],'circle-color':['get','col'],'circle-stroke-color':state.base==='tech'?'#06101e':'#ffffff','circle-stroke-width':1.5,'circle-pitch-alignment':'map'}});
+ map.addLayer({id:'dot',type:'circle',source:'pie',paint:{'circle-radius':['interpolate',['linear'],['zoom'],9,2.5,13,4,17,6],'circle-color':['get','col'],'circle-stroke-color':state.base==='tech'?'#06101e':'#ffffff','circle-stroke-width':1.5,'circle-pitch-alignment':'map'}});
  map.addLayer({id:'dot-sel',type:'circle',source:'pie',filter:['==',['get','sel'],1],paint:{'circle-radius':['interpolate',['linear'],['zoom'],9,7,14,12,17,18],'circle-color':'rgba(0,0,0,0)','circle-stroke-color':'#ff006e','circle-stroke-width':2.5,'circle-pitch-alignment':'map'}});
- map.addLayer({id:'lbl',type:'symbol',source:'pie',minzoom:CARD_Z,layout:{'icon-image':['get','card'],'icon-anchor':'bottom','icon-offset':[0,-6],'icon-size':['interpolate',['linear'],['zoom'],CARD_Z,0.82,16,1],'symbol-sort-key':['case',['==',['get','sel'],1],-1e9,['-',0,['get','t']]],'icon-padding':2}});
+ map.addLayer({id:'lbl',type:'symbol',source:'pie',minzoom:10,layout:{'icon-image':['get','card'],'icon-anchor':'bottom','icon-offset':[0,-6],'icon-size':['interpolate',['linear'],['zoom'],10,0.62,13,0.82,16,1],'symbol-sort-key':['case',['==',['get','sel'],1],-1e9,['-',0,['get','t']]],'icon-padding':2}});
  hovered=null;
 }
 let styleOk=false;
@@ -394,9 +403,9 @@ map.on('error',e=>{console.warn('map error',e&&e.error&&e.error.message);if(!sty
 LABELS.forEach(([d,lon,lat])=>{const el=document.createElement('div');el.className='dlabel';el.textContent=d;new maplibregl.Marker({element:el}).setLngLat([lon,lat]).addTo(map)});
 map.on('click',e=>{const f=map.queryRenderedFeatures(e.point,{layers:['lbl','dot'].filter(l=>map.getLayer(l))})[0];
  if(f){select(f.properties.i);return}
- if(map.getZoom()<CARD_Z){const h=map.queryRenderedFeatures(e.point,{layers:['pj']})[0];if(h){map.flyTo({center:[h.properties.cx,h.properties.cy],zoom:14.2,pitch:45,speed:1.2});return}}
+ if(map.getLayer('pj')&&map.getZoom()<CARD_Z){const h=map.queryRenderedFeatures(e.point,{layers:['pj']})[0];if(h){map.flyTo({center:[h.properties.cx,h.properties.cy],zoom:14.2,pitch:45,speed:1.2});return}}
  if(MOBILE){setSide(false);if(map.getLayer('towns-fill'))hoverTown(e)}});
-['pj','dot','lbl'].forEach(l=>{map.on('mouseenter',l,()=>map.getCanvas().style.cursor='pointer');map.on('mouseleave',l,()=>map.getCanvas().style.cursor='')});
+['dot','lbl'].forEach(l=>{map.on('mouseenter',l,()=>map.getCanvas().style.cursor='pointer');map.on('mouseleave',l,()=>map.getCanvas().style.cursor='')});
 function hoverTown(e){const f=map.queryRenderedFeatures(e.point,{layers:['towns-fill']})[0];const id=f?f.properties.d:null;
  if(id===hovered)return;if(hovered!=null)map.setFeatureState({source:'towns',id:hovered},{hover:false});hovered=id;if(id!=null)map.setFeatureState({source:'towns',id},{hover:true})}
 map.on('mousemove',e=>{if(!MOBILE&&map.getLayer('towns-fill'))hoverTown(e)});
