@@ -176,11 +176,11 @@ function card(it, asof) {
   var nRecent = rs.filter(function (r) { return r[0] >= cut; }).length, recent = rs.slice(0, Math.min(nRecent, 15));
   var note = '近半年（' + ym(cut) + ' 起）' + nRecent + ' 筆';
   if (recent.length < 5) { recent = rs.slice(0, 5); note += '，不足 5 筆，改列最近 ' + recent.length + ' 筆'; } else if (nRecent > 15) note += '，列最近 15 筆';
-  var W = [3, 2, 2, 2, 3, 3, 1];
+  var W = [5, 3, 3, 3, 4, 3, 2];
   function row(cells, hdr) { return B(cells.map(function (c, i) { var col = hdr ? SUB : TX; if (c instanceof Array) { col = c[1]; c = c[0]; } return T(c, { size: 'xs', flex: W[i], align: i ? 'end' : 'start', color: col }); }), 'horizontal', { spacing: 'xs' }); }
   var rows = [row(['年月', '類別', '樓層', '坪數', '總價萬', '單價', '房'], true), { type: 'separator', color: '#2A4560' }];
   recent.forEach(function (r) { rows.push(row([ym(r[0]), [CN[r[1]], COL[r[1]]], r[5] ? r[5] + 'F' : '—', r[4].toFixed(1), comma(r[3]), r[2] != null ? r[2].toFixed(1) : ['店面', OR], r[6] >= 0 ? String(r[6]) : '—'])); });
-  var p2 = [T('成交明細', { weight: 'bold', size: 'md' }), T(note, { size: 'xs', color: SUB, wrap: true }), B(rows, 'vertical', { spacing: 'sm', margin: 'md' })];
+  var p2 = [T('成交明細', { weight: 'bold', size: 'md' }), T(note, { size: 'xs', color: SUB, wrap: true }), B(rows, 'vertical', { spacing: 'sm', margin: 'md', paddingEnd: '4px' })];
   // 頁3 圖表
   function hbar(label, frac, t) {
     return B([T(label, { size: 'xs', color: SUB, flex: 3 }), B([B([], 'vertical', { backgroundColor: CY, height: '10px', width: Math.round(Math.max(frac, 0.02) * 100) + '%', cornerRadius: '2px' })], 'vertical', { flex: 6, justifyContent: 'center' }),
