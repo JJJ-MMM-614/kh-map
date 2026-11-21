@@ -234,7 +234,7 @@ function hexPoly(q,r,k=0.86){const cx=HEX*1.5*q,cy=HEX*Math.sqrt(3)*(r+q/2),c=[]
 function feats(rows){const H=new Map(),Q=[];
  rows.forEach(({p,i,v})=>{const [q,r]=hexKey(p.lon,p.lat),k=q+','+r;let o=H.get(k);if(!o){o={q,r,c:[0,0,0],n:0,ids:[]};H.set(k,o)}[0,1,2].forEach(x=>o.c[x]+=v.c[x]);o.n++;o.ids.push(i);
   const dom=v.c.indexOf(Math.max(...v.c));
-  Q.push({type:'Feature',properties:{i,n:p.n,col:COL[dom],t:v.t,sel:state.sel===i?1:0,card:`card|${i}|${v.c.join(',')}|${v.a==null?'':v.a.toFixed(1)}|${state.sel===i?1:0}|${state.base==='tech'?1:0}`},geometry:{type:'Point',coordinates:[p.lon,p.lat]}})});
+  Q.push({type:'Feature',properties:{i,n:p.n,col:COL[dom],t:v.t,sel:state.sel===i?1:0,a:v.a==null?'':v.a.toFixed(1),card:`card|${i}|${v.c.join(',')}|${v.a==null?'':v.a.toFixed(1)}|${state.sel===i?1:0}|${state.base==='tech'?1:0}`},geometry:{type:'Point',coordinates:[p.lon,p.lat]}})});
  // 顏色與高度依「目前篩選」的相對排名分級，篩選改變時自動重算
  const HS=[...H.values()],tots=HS.map(o=>o.c[0]+o.c[1]+o.c[2]).sort((a,b)=>a-b),mx=tots[tots.length-1]||1;
  const NB=HEXCOL.length,brk=[];for(let k=1;k<NB;k++)brk.push(tots[Math.min(tots.length-1,Math.floor(tots.length*k/NB))]||0);HEXBRK=[tots[0]||0,...brk,mx];
@@ -247,7 +247,7 @@ const avg=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:null;
 let lastF=[{type:'FeatureCollection',features:[]},{type:'FeatureCollection',features:[]}],lastRows=[];
 function update(){
  lastRows=filtered();lastF=feats(lastRows);
- if(map.getSource('pj')){map.getSource('pj').setData(lastF[0]);map.getSource('pie').setData(lastF[1])}
+ if(map.getSource('pj')){map.getSource('pj').setData(lastF[0]);map.getSource('pie').setData(lastF[1]);if(window.CARD_IDS){const cur=new Set(lastF[1].features.map(f=>f.properties.card));CARD_IDS.forEach(id=>{if(!cur.has(id)){if(map.hasImage(id))map.removeImage(id);CARD_IDS.delete(id)}})}}
  const rows=[...lastRows].sort((a,b)=>b.v.t-a.v.t);
  const bar=v=>`<div class="ratio">${[0,1,2].map(k=>`<i style="width:${100*v.c[k]/v.t}%;background:${COL[k]}"></i>`).join('')}</div>`;
  document.getElementById('list').innerHTML=`<div class="item"><div class="s">${rows.length} 個建案，依成交筆數排序</div></div>`+rows.slice(0,300).map(({p,i,v})=>`<div class="item${state.sel===i?' sel':''}" data-i="${i}"><div><div class="n">${esc(p.n)}<span class="tag ${p.kind==='成屋'?'k1':'k0'}">${p.kind}</span><span class="tag lv${LV[p.lev]}">${LVN[LV[p.lev]]}</span></div><div class="s">${p.d}｜${esc(p.addr)}</div></div><div class="p">${fmt(v.a)}<div class="s">${v.t} 筆</div>${bar(v)}</div></div>`).join('')+(rows.length>300?`<div class="item"><div class="s">只列前 300 案，請用篩選縮小範圍</div></div>`:'');
@@ -374,7 +374,12 @@ function pieImage(id){const q=id.slice(4).split('-').map(Number),S=96,c=document
  g.beginPath();g.arc(S/2,S/2,R*0.42,0,7);g.fillStyle='#0a1a2e';g.fill();
  g.lineWidth=3;g.strokeStyle='rgba(255,255,255,.9)';g.beginPath();g.arc(S/2,S/2,R,0,7);g.stroke();
  return{width:S,height:S,data:new Uint8Array(g.getImageData(0,0,S,S).data.buffer)}}
-map.on('styleimagemissing',e=>{if(e.id.startsWith('card|')&&!map.hasImage(e.id)){map.addImage(e.id,cardImage(e.id),{pixelRatio:2});return}if(e.id.startsWith('pie-')&&!map.hasImage(e.id))map.addImage(e.id,pieImage(e.id),{pixelRatio:2})});
+/* 記憶體：手機改用文字標籤（不畫卡片圖）；電腦版清掉用不到的卡片圖（iPhone 曾因卡片圖過多而重複當掉） */
+var CARD_IDS=new Set(),CARD_MAX=600;
+function pruneCards(force){if(!force&&CARD_IDS.size<=CARD_MAX)return;let keep=new Set();try{if(map.getLayer('lbl'))map.queryRenderedFeatures({layers:['lbl']}).forEach(f=>keep.add(f.properties.card))}catch(e){}
+ const cur=new Set(lastF[1].features.map(f=>f.properties.card));CARD_IDS.forEach(id=>{if(keep.has(id)&&cur.has(id))return;if(map.hasImage(id))map.removeImage(id);CARD_IDS.delete(id)})}
+map.on('moveend',()=>pruneCards(false));
+map.on('styleimagemissing',e=>{if(e.id.startsWith('card|')&&!map.hasImage(e.id)){map.addImage(e.id,cardImage(e.id),{pixelRatio:2});CARD_IDS.add(e.id);return}if(e.id.startsWith('pie-')&&!map.hasImage(e.id))map.addImage(e.id,pieImage(e.id),{pixelRatio:2})});
 let hovered=null;
 function addOverlay(){
  const tech=state.base==='tech',pal=tech?PAL_TE:PAL_ST;
@@ -397,7 +402,11 @@ function addOverlay(){
  if(!map.hasImage('lbl-d'))map.addImage('lbl-d',boxImage('rgba(8,20,36,.92)','rgba(56,225,255,.55)'),{pixelRatio:2,stretchX:[[14,26]],stretchY:[[12,16]],content:[8,6,32,22]});
  map.addLayer({id:'dot',type:'circle',source:'pie',paint:{'circle-radius':['interpolate',['linear'],['zoom'],9,2.5,13,4,17,6],'circle-color':['get','col'],'circle-stroke-color':state.base==='tech'?'#06101e':'#ffffff','circle-stroke-width':1.5,'circle-pitch-alignment':'map'}});
  map.addLayer({id:'dot-sel',type:'circle',source:'pie',filter:['==',['get','sel'],1],paint:{'circle-radius':['interpolate',['linear'],['zoom'],9,7,14,12,17,18],'circle-color':'rgba(0,0,0,0)','circle-stroke-color':'#ff006e','circle-stroke-width':2.5,'circle-pitch-alignment':'map'}});
- map.addLayer({id:'lbl',type:'symbol',source:'pie',minzoom:10,layout:{'icon-image':['get','card'],'icon-anchor':'bottom','icon-offset':[0,-6],'icon-size':['interpolate',['linear'],['zoom'],10,0.62,13,0.82,16,1],'symbol-sort-key':['case',['==',['get','sel'],1],-1e9,['-',0,['get','t']]],'icon-padding':2}});
+ if(MOBILE)map.addLayer({id:'lbl',type:'symbol',source:'pie',minzoom:10,layout:{'text-field':['format',['get','n'],{},'\n',{},['concat',['to-string',['get','t']],' 筆',['case',['==',['get','a'],''],'',['concat','・',['get','a'],' 萬/坪']]],{'font-scale':0.82}],
+   'text-font':['Noto Sans Regular'],'text-size':['interpolate',['linear'],['zoom'],10,10,13,11.5,16,13],'text-anchor':'bottom','text-offset':[0,-0.9],'text-max-width':10,'text-line-height':1.25,
+   'icon-image':tech?'lbl-d':'lbl-l','icon-text-fit':'both','icon-text-fit-padding':[3,6,3,6],'symbol-sort-key':['case',['==',['get','sel'],1],-1e9,['-',0,['get','t']]],'text-padding':2},
+  paint:{'text-color':['case',['==',['get','sel'],1],'#ff006e',tech?'#e3f2ff':'#14243c']}});
+ else map.addLayer({id:'lbl',type:'symbol',source:'pie',minzoom:10,layout:{'icon-image':['get','card'],'icon-anchor':'bottom','icon-offset':[0,-6],'icon-size':['interpolate',['linear'],['zoom'],10,0.62,13,0.82,16,1],'symbol-sort-key':['case',['==',['get','sel'],1],-1e9,['-',0,['get','t']]],'icon-padding':2}});
  hovered=null;
 }
 let styleOk=false;
