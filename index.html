@@ -398,6 +398,8 @@ let styleOk=false;
 function setBase(b){state.base=b;styleOk=false;document.body.className=b==='tech'?'tech':'light';document.querySelectorAll('#basesw span').forEach(x=>x.classList.toggle('on',x.dataset.b===b));
  if(b==='street')map.setStyle(OFM+'/styles/liberty',{diff:false,transformStyle:zhStyle});else if(b==='nlsc')map.setStyle(nlscStyle(),{diff:false});else map.setStyle(techStyle(),{diff:false})}
 map.on('style.load',()=>{styleOk=true;addOverlay()});
+/* 網址帶 ?n=案名&d=行政區 時直接打開該案（LINE 機器人連結用） */
+(function(){const u=new URLSearchParams(location.search),n=u.get('n');if(!n)return;const d=u.get('d');const i=P.findIndex(p=>p.n===n&&(!d||p.d===d));if(i<0)return;map.once('idle',()=>fly(i))})();
 document.querySelectorAll('#basesw span').forEach(x=>x.addEventListener('click',e=>{e.stopPropagation();if(x.dataset.b!==state.base)setBase(x.dataset.b)}));
 map.on('error',e=>{console.warn('map error',e&&e.error&&e.error.message);if(!styleOk&&state.base==='street')setTimeout(()=>{if(!styleOk&&state.base==='street')setBase('nlsc')},3000)});
 LABELS.forEach(([d,lon,lat])=>{const el=document.createElement('div');el.className='dlabel';el.textContent=d;new maplibregl.Marker({element:el}).setLngLat([lon,lat]).addTo(map)});
