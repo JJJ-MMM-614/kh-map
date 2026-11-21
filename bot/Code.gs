@@ -135,6 +135,9 @@ function reply(token, msgs) {
 function txt(t) { return { type: 'text', text: t }; }
 
 // ---------- Flex 卡片 ----------
+function HP(r) { return r[7] != null && r[7] > 0 ? r[7] : r[4]; } // 房屋坪數（不含車位）
+function rng(a) { a = a.filter(function (x) { return x > 0; }); return a.length ? Math.min.apply(null, a).toFixed(1) + '–' + Math.max.apply(null, a).toFixed(1) : '—'; }
+function carTxt(r) { if (!(r[8] || r[9] || r[10])) return ''; return '車位：' + [r[8] || '類別未註明', r[9] ? r[9].toFixed(1) + '坪' : '', r[10] ? comma(r[10]) + '萬' : '價格含在總價'].filter(Boolean).join('｜'); }
 function avg(a) { return a.length ? a.reduce(function (x, y) { return x + y; }, 0) / a.length : null; }
 function f1(x) { return x == null ? '—' : x.toFixed(1); }
 function ym(v) { return Math.floor(v / 100) + '/' + ('0' + v % 100).slice(-2); }
@@ -165,7 +168,7 @@ function card(it, asof) {
   if (p.addr) p1.push(T(p.addr, { color: SUB, wrap: true, size: 'xs' }));
   p1 = p1.concat([
     B([kpi('成交筆數', comma(R.length), '筆'), kpi('平均單價', f1(avg(units)), '萬/坪')], 'horizontal', { spacing: 'sm', margin: 'lg' }),
-    B([kpi('平均總價', ns.length ? comma(avg(ns.map(function (r) { return r[3]; }))) : '—', '萬'), kpi('平均坪數', f1(avg(ns.map(function (r) { return r[4]; }))), '坪')], 'horizontal', { spacing: 'sm' }),
+    B([kpi('平均總價', ns.length ? comma(avg(ns.map(function (r) { return r[3]; }))) : '—', '萬'), kpi('坪數區間（房屋）', rng(ns.map(HP)), '坪')], 'horizontal', { spacing: 'sm' }),
     B([kpi('單價區間', units.length ? Math.min.apply(null, units).toFixed(1) + '–' + Math.max.apply(null, units).toFixed(1) : '—', '萬/坪')], 'horizontal'),
     B(cnt.map(function (c, k) { return c ? B([], 'vertical', { flex: c, height: '8px', backgroundColor: COL[k] }) : null; }).filter(Boolean), 'horizontal', { cornerRadius: '4px', margin: 'md' }),
     B(cnt.map(function (c, k) { return T('● ' + CN[k] + ' ' + c, { size: 'xs', color: COL[k], flex: 0 }); }), 'horizontal', { spacing: 'lg' }),
@@ -179,8 +182,8 @@ function card(it, asof) {
   var W = [5, 3, 3, 3, 4, 3, 2];
   function row(cells, hdr) { return B(cells.map(function (c, i) { var col = hdr ? SUB : TX; if (c instanceof Array) { col = c[1]; c = c[0]; } return T(c, { size: 'xs', flex: W[i], align: i ? 'end' : 'start', color: col }); }), 'horizontal', { spacing: 'xs' }); }
   var rows = [row(['年月', '類別', '樓層', '坪數', '總價萬', '單價', '房'], true), { type: 'separator', color: '#2A4560' }];
-  recent.forEach(function (r) { rows.push(row([ym(r[0]), [CN[r[1]], COL[r[1]]], r[5] ? r[5] + 'F' : '—', r[4].toFixed(1), comma(r[3]), r[2] != null ? r[2].toFixed(1) : ['店面', OR], r[6] >= 0 ? String(r[6]) : '—'])); });
-  var p2 = [T('成交明細', { weight: 'bold', size: 'md' }), T(note, { size: 'xs', color: SUB, wrap: true }), B(rows, 'vertical', { spacing: 'sm', margin: 'md', paddingEnd: '4px' })];
+  recent.forEach(function (r) { rows.push(row([ym(r[0]), [CN[r[1]], COL[r[1]]], r[5] ? r[5] + 'F' : '—', HP(r).toFixed(1), comma(r[3]), r[2] != null ? r[2].toFixed(1) : ['店面', OR], r[6] >= 0 ? String(r[6]) : '—'])); var ct = carTxt(r); if (ct) rows.push(B([T(ct, { size: 'xxs', color: SUB, align: 'end' })], 'vertical', { margin: 'none' })); });
+  var p2 = [T('成交明細', { weight: 'bold', size: 'md' }), T(note + '；坪數為房屋坪（不含車位）', { size: 'xs', color: SUB, wrap: true }), B(rows, 'vertical', { spacing: 'sm', margin: 'md', paddingEnd: '4px' })];
   // 頁3 圖表
   function hbar(label, frac, t) {
     return B([T(label, { size: 'xs', color: SUB, flex: 3 }), B([B([], 'vertical', { backgroundColor: CY, height: '10px', width: Math.round(Math.max(frac, 0.02) * 100) + '%', cornerRadius: '2px' })], 'vertical', { flex: 6, justifyContent: 'center' }),
@@ -195,10 +198,10 @@ function card(it, asof) {
   var sec2 = fks.slice(-20).map(function (k) { return hbar(k + 'F', 0.25 + 0.75 * (hi > lo ? (fa[k] - lo) / (hi - lo) : 1), fa[k].toFixed(1)); });
   var rm = {}; ns.forEach(function (r) { if (r[6] >= 0) { var k = Math.min(r[6], 4); (rm[k] = rm[k] || []).push(r); } });
   function rn(k) { return k == 0 ? '開放/0房' : k == 4 ? '4房以上' : k + '房'; }
-  var hd = [['房型', 3], ['筆數', 2], ['均坪', 2], ['均單價', 2], ['均總價', 3]];
+  var hd = [['房型', 3], ['筆數', 2], ['坪數區間', 4], ['均單價', 3], ['均總價', 3]];
   var rw3 = [B(hd.map(function (h, i) { return T(h[0], { size: 'xs', color: SUB, flex: h[1], align: i ? 'end' : 'start' }); }), 'horizontal')];
   Object.keys(rm).sort().forEach(function (k) { var a = rm[k];
-    var c = [rn(k), String(a.length), f1(avg(a.map(function (r) { return r[4]; }))), f1(avg(a.map(function (r) { return r[2]; }))), comma(avg(a.map(function (r) { return r[3]; })))];
+    var c = [rn(k), String(a.length), rng(a.map(HP)), f1(avg(a.map(function (r) { return r[2]; }))), comma(avg(a.map(function (r) { return r[3]; })))];
     rw3.push(B(c.map(function (x, i) { return T(x, { size: 'xs', flex: hd[i][1], align: i ? 'end' : 'start' }); }), 'horizontal')); });
   var p3 = [T('季成交量與平均單價', { weight: 'bold', size: 'md' }), T('最近 8 季，右側＝筆數與均價（萬/坪）', { size: 'xxs', color: SUB }), B(sec1, 'vertical', { spacing: 'xs' })];
   if (fks.length) p3 = p3.concat([T('樓層單價（萬/坪）', { weight: 'bold', size: 'md', margin: 'lg' }), B(sec2, 'vertical', { spacing: 'xs' })]);
